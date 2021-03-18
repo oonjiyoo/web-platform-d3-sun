@@ -14,12 +14,14 @@
       //const data =  d3.json("flare-2@2.json", function(data) {
       //  console.log(data);
       //});
-      d3.json("./flare-2@2.json", function(data) {
+      var data;
+      d3.json("flare-2@2.json", function(data) {
         if(error)throw error;
-        
-        data.forEach(function(d){
-          console.log(d.name)
-        });
+        data = json;
+        visualizeit();
+        //data.forEach(function(d){
+        //  console.log(d.name)
+        //});
       
       });              
       //const data = fetch("flare-2@2.json")
