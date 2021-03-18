@@ -1,135 +1,457 @@
 <!DOCTYPE html>
-<meta charset="utf-8">
-<style>
+<head>
+    <meta charset="utf-8">
+    <script src="https://code.jquery.com/jquery-1.10.2.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.3.10/d3.js"></script>
+    <script src="https://cdn.jsdelivr.net/alasql/0.3.9/alasql.min.js"></script>
+    <script src="sampleData.js"></script>
+    <style>
+        body{
+            font-family: Calibri;
+        }
 
-body {
-font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-margin: auto;
-position: relative;
-width: 960px;
-}
+        path {
+            stroke-width: 0px;
+        }
 
-form {
-position: absolute;
-right: 10px;
-top: 10px;
-}
+        .label {
+            font-family: Calibri;
+            font-size: 16px;
+            pointer-events: none;
+            font-weight: 500
+        }
 
-path {
-stroke: #fff;
-fill-rule: evenodd;
-}
+        .sunTitle {
+            color: #333;
+        }
 
-</style>
+        g {
+            cursor: pointer;
+        }
+
+        #sequence {
+            width: 575px;
+            height: 70px;
+        }
+
+        #legend {
+            padding: 10px 0 0 3px;
+        }
+
+        #sequence text, #legend text {
+            font-weight: 600;
+            fill: #fff;
+        }
+
+        #explanation {
+            position: absolute;
+            top: 260px;
+            left: 305px;
+            width: 140px;
+            text-align: center;
+            color: #666;
+            z-index: -1;
+        }
+
+        #percentage {
+            font-size: 2.5em;
+        }
+    </style>
+</head>
+
 <body>
-<form>
-<label><input type="radio" name="mode" value="size"> Size</label>
-<label><input type="radio" name="mode" value="count" checked> Count</label>
-</form>
-<script src="//d3js.org/d3.v3.min.js"></script>
-<script>
+    <div style="width: 100%">
+        <div style="color: #252c55; font-size: 20px;font-style: italic; text-align: center;margin-left: auto;margin-right:auto;">Phase 3 U.S. Pharma Industry Studies for:  COPD, IBS, ITP, NASH, and RA<br/>Source:  ClinicalTrials.gov</div>
+        <div style="margin-left: auto;margin-right:auto" id="sequence"></div>
+        <div style="margin-left: auto;margin-right:auto;text-align:center; margin-bottom:10px; margin-top: -30px; font-size: 18px; font-weight: bold; color: #54565b;" id="moreInfo"></div>
+        <div style="width: 1080px;margin-left: auto;margin-right:auto" id="bcSunburst"></div>
+    </div>
+    <script>
+      //var vfdata = d3.json('test.json')
+        $(document).ready(function () {
+            var CCFReportingData = [];
+            var VendorFamilies = [];
+            var piequery;
+            var ProtocolVendors = [];
+            var testData = vfdata;
+            var radMargin = 0;
+            var ir = 1.0;
+            var or = 1.0;
+            var topMargin = 0;
+            var textMargin = "0";
+            var textvAlign = "0em";
+            var clickDepth = 3;
+            var depth = clickDepth + 1;
+            var sizeProperty = "size";
 
-var width = 960,
-  height = 700,
-  radius = Math.min(width, height) / 2;
+            var margin = { top: 30, right: 10, bottom: 20, left: 10 },
+            width = 1100 - margin.left - margin.right,
+            height = 1100 - margin.top - margin.bottom,
+            radius = (Math.min(width, height) / 2);
+            var level1 = "ta";
+            var level2 = "name";
+            var level3 = "model";
+            var level4 = "size";
 
-var x = d3.scale.linear()
-  .range([0, 2 * Math.PI]);
+            // Breadcrumb dimensions: width, height, spacing, width of tip/tail.
+            var b = {
+                w: 100, h: 30, s: 3, t: 10, g: 3
+            };
 
-var y = d3.scale.sqrt()
-  .range([0, radius]);
+            // Total size of all segments; we set this later, after loading the data.
+            var totalSize = 0;
+            var x = d3.scale.linear().range([0, 2 * Math.PI]);
+            var y = d3.scale.linear().range([0, radius]);
 
-var color = d3.scale.category20c();
+            // Define a function that returns the color for a data point.
+            var colors;
+            var color = function (d) {
+                if (!d.parent) {
+                    colors = d3.scale.ordinal().range(["#4f1c91", "#ea1877", "#4474bd", "#00814C", "#909464"]);
+                    // White for the root node itself.
+                    d.color = "#fff";
+                } else if (d.children) {
+                    var startColor = d3.hcl(d.color).darker(),
+                        endColor = d3.hcl(d.color).brighter();
+                    // Create the scale
+                    colors = d3.scale.linear()
+                            .interpolate(d3.interpolateHcl)
+                            .range([
+                                startColor.toString(),
+                                endColor.toString()
+                            ])
+                            .domain([0, d.children.length + 1]);
+                }
 
-var svg = d3.select("body").append("svg")
-  .attr("width", width)
-  .attr("height", height)
-.append("g")
-  .attr("transform", "translate(" + width / 2 + "," + (height / 2 + 10) + ")");
+                if (d.children) {
+                    // Now distribute those colors to the child nodes.
+                    d.children.map(function (child, i) {
+                        return { value: child.value, idx: i };
+                    }).sort(function (a, b) {
+                        return b.value - a.value
+                    }).forEach(function (child, i) {
+                        d.children[child.idx].color = colors(i);
+                    });
+                }
+                return d.color;
+            };
 
-var partition = d3.layout.partition()
-  .sort(null)
-  .value(function(d) { return 1; });
+            var svg = d3.select("#bcSunburst").append("svg")
+                .attr("width", width)
+                .attr("height", height)
+                .append("g")
+                .attr("transform", "translate(" + width / 2 + "," + (height / 2 + topMargin) + ")");
 
-var arc = d3.svg.arc()
-  .startAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x))); })
-  .endAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x + d.dx))); })
-  .innerRadius(function(d) { return Math.max(0, y(d.y)); })
-  .outerRadius(function(d) { return Math.max(0, y(d.y + d.dy)); });
+            var partition = d3.layout.partition()
+                .sort(function (a, b) { return d3.ascending(b[sizeProperty], a[sizeProperty]); })
+                .value(function (d) { return d[sizeProperty]; })
 
-// Keep track of the node that is currently being displayed as the root.
-var node;
+            var arc = d3.svg.arc()
+                .startAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x))); })
+                .endAngle(function (d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x + d.dx))); })
+                .innerRadius(function (d) { return Math.max(0, y((d.y) * ir)); })
+                .outerRadius(function (d) { return Math.max(0, y((d.y + d.dy) * or)); });
 
-d3.json("https://gist.githubusercontent.com/mbostock/4348373/raw/85f18ac90409caa5529b32156aa6e71cf985263f/flare.json", function(error, root) {
-node = root;
-var path = svg.datum(root).selectAll("path")
-    .data(partition.nodes)
-  .enter().append("path")
-    .attr("d", arc)
-    .style("fill", function(d) { return color((d.children ? d : d.parent).name); })
-    .on("click", click)
-    .each(stash);
+            testData = alasql('SELECT ta, name, model, size, tacount FROM $0 ORDER BY tacount DESC', [testData]);
+            var rootName = '';
+            var root = { name: rootName, children: [] },
+                levels = [level1, level2];
 
-d3.selectAll("input").on("change", function change() {
-  var value = this.value === "count"
-      ? function() { return 1; }
-      : function(d) { return d.size; };
+            // For each data row, loop through the expected levels traversing the output tree
+            testData.forEach(function (d) {
+                // Keep this as a reference to the current level
+                var depthCursor = root.children;
+                // Go down one level at a time
+                levels.forEach(function (property, depth) {
 
-  path
-      .data(partition.value(value).nodes)
-    .transition()
-      .duration(1000)
-      .attrTween("d", arcTweenData);
-});
+                    // Look to see if a branch has already been created
+                    var index;
+                    depthCursor.forEach(function (child, i) {
+                        if (d[property] == child.name) index = i;
+                    });
+                    // Add a branch if it isn't there
+                    if (isNaN(index)) {
+                        depthCursor.push({ name: d[property], children: [] });
+                        index = depthCursor.length - 1;
+                    }
+                    // Now reference the new child array as we go deeper into the tree
+                    depthCursor = depthCursor[index].children;
+                    // This is a leaf, so add the last element to the specified branch
+                    if (depth === levels.length - 1) depthCursor.push({ name: d[level3], size: d[level4] });
+                });
+            });
+            initializeBreadcrumbTrail();
+            partition
+                .nodes(root)
+                .forEach(function (d) {
+                    d._children = d.children;
+                    d.sum = d.value;
+                    d.key = key(d);
+                });
 
-function click(d) {
-  node = d;
-  path.transition()
-    .duration(1000)
-    .attrTween("d", arcTweenZoom(d));
-}
-});
+            var g = svg.selectAll("g")
+                .data(partition.nodes(root))
+                .enter().append("g");
 
-d3.select(self.frameElement).style("height", height + "px");
+            var path = g.append("path")
+                .attr("d", arc)
+                .attr("class", function (d) { return (d.children ? d : d.parent).name; })
+                .attr("fill-rule", "evenodd")
+                .attr("fill", color)
+                .on("click", click)
+                .on("mouseover", mouseover)
+                .on("mouseout", mouseout);
+            var total;
+            var text = g.append("text")
+                .classed("label", true)
+                .attr("x", function (d) { return d.x; })
+                .attr("text-anchor", "middle")
+                .attr("transform", function (d) {
+                    if (d.depth > 0) {
+                        return "translate(" + arc.centroid(d) + ")" +
+                                "rotate(" + getAngle(d) + ")";
+                    } else {
+                        return null;
+                    }
+                })
+                .style("fill", "#e3f4ff") //label color
+                .text(function (d) { return d.name; })
 
-// Setup for switching data: stash the old values for transition.
-function stash(d) {
-d.x0 = d.x;
-d.dx0 = d.dx;
-}
+            function click(d) {
+                if (d.depth != clickDepth) {
+                    // fade out all text elements
+                    text.transition().attr("opacity", 0);
+                    path.transition()
+                    .duration(750)
+                    .attrTween("d", arcTween(d))
+                    .each("end", function (e, i) {
+                        // check if the animated element's data e lies within the visible angle span given in d
+                        if (e.x >= d.x && e.x < (d.x + d.dx)) {
+                            // get a selection of the associated text element
+                            var arcText = d3.select(this.parentNode).select("text");
+                            // fade in the text element and recalculate positions
+                            arcText.transition().duration(750)
+                                .attr("opacity", 10)
+                                .text(function (d) {
+                                    return d.name
+                                })
+                                .attr("x", function (d) { return d.x; })
+                                .attr("text-anchor", "middle")
+                                // translate to the desired point and set the rotation
+                                .attr("transform", function (d) {
+                                    if (d.depth > 0) {
+                                        return "translate(" + arc.centroid(d) + ")" +
+                                                "rotate(" + getAngle(d) + ")";
+                                    } else {
+                                        return null;
+                                    }
+                                })
+                        }
+                    });
+                }
+                if (d.depth == clickDepth) {
+                    var url = "https://clinicaltrials.gov/ct2/show/" + d.name;
+                    window.open(url);
+                }
+            }
 
-// When switching data: interpolate the arcs in data space.
-function arcTweenData(a, i) {
-var oi = d3.interpolate({x: a.x0, dx: a.dx0}, a);
-function tween(t) {
-  var b = oi(t);
-  a.x0 = b.x;
-  a.dx0 = b.dx;
-  return arc(b);
-}
-if (i == 0) {
-  // If we are on the first arc, adjust the x domain to match the root node
-  // at the current zoom level. (We only need to do this once.)
-  var xd = d3.interpolate(x.domain(), [node.x, node.x + node.dx]);
-  return function(t) {
-    x.domain(xd(t));
-    return tween(t);
-  };
-} else {
-  return tween;
-}
-}
+            function initializeBreadcrumbTrail() {
+                // Add the svg area.
+                var trail = d3.select("#sequence").append("svg:svg")
+                    .attr("width", width / 2)
+                    .attr("height", 50)
+                    .attr("id", "trail");
+                // Add the label at the end, for the percentage.
+                trail.append("svg:text")
+                    .attr("id", "endlabel")
+                    .style("fill", "#000");
+            }
+            // calculate size of breadcrumb box due to name size
+            function calculateBreadcrumbWidth(d) {
+                return (b.w + b.t + d.name.length * 4.0);
+            }
 
-// When zooming: interpolate the scales.
-function arcTweenZoom(d) {
-var xd = d3.interpolate(x.domain(), [d.x, d.x + d.dx]),
-    yd = d3.interpolate(y.domain(), [d.y, 1]),
-    yr = d3.interpolate(y.range(), [d.y ? 20 : 0, radius]);
-return function(d, i) {
-  return i
-      ? function(t) { return arc(d); }
-      : function(t) { x.domain(xd(t)); y.domain(yd(t)).range(yr(t)); return arc(d); };
-};
-}
+            // calculate breadcrumb offset
+            function calculateBreadcrumbOffset(d) {
+                var offset = 0;
+                if (d.parent.name == "") {
+                    return 0;
+                }
+                while (d.parent.name != "") {
+                    d = d.parent;
+                    offset += (calculateBreadcrumbWidth(d) + b.g);
+                }
+                return (offset);
+            }
 
-</script>
+            // Generate a string that describes the points of a breadcrumb polygon.
+            function breadcrumbPoints(d, i) {
+                var points = [];
+                points.push("0,0"); // top-left
+                points.push(calculateBreadcrumbWidth(d) + ",0"); //top right
+                points.push(calculateBreadcrumbWidth(d) + b.t + "," + (b.h / 2)); // tip
+                points.push(calculateBreadcrumbWidth(d) + "," + b.h); // bottom right
+                points.push("0," + b.h); // bottom-left
+                if (i > 0) { // Leftmost breadcrumb; don't include 6th vertex.
+                    points.push(b.t + "," + (b.h / 2));
+                }
+                return points.join(" ");
+            }
+
+            function calculateBreadcrumbPercentage(nodeArray) {
+                var offset = 0;
+                for (var i = 0; i < nodeArray.length; i++) {
+                    offset += calculateBreadcrumbWidth(nodeArray[i]);
+                }
+                offset += nodeArray.length * b.g;
+                offset += 45;
+                return (offset);
+            }
+            // Update the breadcrumb trail to show the current sequence and percentage.
+            function updateBreadcrumbs(nodeArray) {
+
+                // Data join; key function combines name and depth (= position in sequence).
+                var g = d3.select("#trail")
+                    .selectAll("g")
+                    .data(nodeArray, function (d) {
+                        return d.name + d.depth;
+                    });
+
+                // Add breadcrumb and label for entering nodes.
+                var entering = g.enter().append("svg:g");
+
+                entering.append("svg:polygon")
+                    .attr("points", breadcrumbPoints)
+                    .style("fill", function (d) {
+                        return d.color;
+                    });
+
+                entering.append("svg:text")
+                    .attr("x", function (d) {
+                        return ((calculateBreadcrumbWidth(d) + b.t) / 2);
+                    })
+                    .attr("y", b.h / 2)
+                    .attr("dy", "0.35em")
+                    .attr("text-anchor", "middle")
+                    .text(function (d) { return d.name; })
+                    .on("click", function (d) {
+                        if (d.depth == clickDepth) {
+                            var url = "https://clinicaltrials.gov/ct2/show/" + d.name;
+                            window.open(url);
+                        }
+                        else {
+                            click(d);
+                        }
+                    });
+
+                // Set position for entering and updating nodes.
+                g.attr("transform", function (d, i) {
+                    return "translate(" + calculateBreadcrumbOffset(d) + ", 0)";
+                });
+
+                // Remove exiting nodes.
+                g.exit().remove();
+
+                // Now move and update the percentage at the end.
+                d3.select("#trail").select("#endlabel")
+                    .attr("x", calculateBreadcrumbPercentage(nodeArray))
+                    .attr("y", b.h / 2)
+                    .attr("dy", "0.35em")
+                    .attr("text-anchor", "middle");
+
+                // Make the breadcrumb trail visible, if it's hidden.
+                d3.select("#trail")
+                    .style("visibility", "");
+            }
+            function key(d) {
+                var k = [], p = d;
+                while (p.depth) k.push(p.name), p = p.parent;
+                return k.reverse().join(".");
+            }
+            d3.select(self.frameElement).style("height", height + "px");
+            // Interpolate the scales!
+            function arcTween(d) {
+                var xd = d3.interpolate(x.domain(), [d.x, d.x + d.dx]),
+                    yd = d3.interpolate(y.domain(), [d.y, 1]),
+                    yr = d3.interpolate(y.range(), [d.y ? 20 : 0, radius]);
+                return function(d, i) {
+                    return i
+                        ? function(t) { return arc(d); }
+                        : function(t) { x.domain(xd(t)); y.domain(yd(t)).range(yr(t)); return arc(d); };
+                };
+            }
+            function getAngle(d) {
+                var total = 0;
+                var thetaDeg = (180 / Math.PI * (arc.startAngle()(d) + arc.endAngle()(d)) / 2 - 90);
+                if (d.name == '') {
+                    return 0;
+                }
+                else {
+                    return (thetaDeg > 90) ? thetaDeg - 180 : thetaDeg;
+                }
+            }
+            // Given a node in a partition layout, return an array of all of its ancestor
+            // nodes, highest first, but excluding the root.
+            function getAncestors(node) {
+                var path = [];
+                var current = node;
+                while (current.parent) {
+                    path.unshift(current);
+                    current = current.parent;
+                }
+                return path;
+            }
+            function mouseover(d) {
+                d3.select(this)
+                        .transition()
+                        .duration(1000)
+                        .ease('elastic')
+                        .style("opacity", 0.3);
+
+                var sequenceArray = getAncestors(d);
+                updateBreadcrumbs(sequenceArray);
+
+                $('#moreInfo').text(
+                    (d.depth == 3
+                        ? (d.sum - 1000) + " Enrolled"
+                        : d.depth == 2
+                            ? function () {
+                                var total = d.children.length;
+                                if (total > 1) {
+                                    return total + " Studies";
+                                }
+                                else if (total == 1) {
+                                    return total + " Study";
+                                }
+                            }
+                            : d.depth == 1
+                                ? function () {
+                                    var total = 0;
+                                    for (var i = 0; i < d.children.length; i++) {
+                                        total = total + d.children[i].children.length;
+                                    }
+                                    if (total > 1) {
+                                        return total + " Studies";
+                                    }
+                                    else if (total == 1) {
+                                        return total + " Study";
+                                    }
+                                }
+                                : d.depth == 0
+                                    ? function () {
+
+                                        return testData.length + " Total Studies"
+                                    }
+                                    : ""
+                    )
+                )
+            };
+            function mouseout(d) {
+                d3.select(this)
+                    .transition()
+                    .duration(100)
+                    .style("opacity", 1);
+            };
+        });
+    </script>
+</body>

@@ -1,4 +1,4 @@
-{
+var data = {
  "name": "flare",
  "children": [
   {
@@ -377,4 +377,4 @@
    ]
   }
  ]
-}
+};

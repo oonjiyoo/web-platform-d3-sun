@@ -3,6 +3,7 @@
     <link rel="stylesheet" type="text/css" href="styles.css">
     <script src="https://d3js.org/d3.v6.min.js"></script>
     <script src="d3Chart.js"></script>
+    <script src="flare-2@2.js"></script>
     <!-- script src="flare-2@2.json"></script> -->
     <!-- <link rel="stylesheet" type="text/css" href="styles.css"> -->
   </head>
@@ -12,18 +13,6 @@
     
 
     <script>
-      data = ({
-               "name": "flare",
-                "children": [{
-                  "name": "경찰",
-                  "children": [
-                    {"name": "자치경찰", "value": 3938},
-                    {"name": "국가수사본부", "value": 3812},
-                    {"name": "딥페이크", "value": 6714},
-                    {"name": "반부패대책", "value": 743}]
-                }]
-              })
-      
       //data = d3.json ("https://mwshovel.pythonanywhere.com/dirt/beaches/Vevey/?format=json")
       drawChart('.container',data)
 

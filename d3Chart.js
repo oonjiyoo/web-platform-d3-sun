@@ -7,18 +7,6 @@ function drawChart(container, data) {
   const radius = width / 6
   const format = d3.format(",d")
 
-  data = ({
-          "name": "flare",
-          "children": [{
-            "name": "경찰",
-            "children": [
-              {"name": "자치경찰", "value": 3938},
-              {"name": "국가수사본부", "value": 3812},
-              {"name": "딥페이크", "value": 6714},
-              {"name": "반부패대책", "value": 743}]
-          }]
-        })
-
   const partition = data => {
     const root = d3.hierarchy(data)
         .sum(d => d.value)
