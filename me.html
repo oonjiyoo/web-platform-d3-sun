@@ -31,12 +31,15 @@
       //  .then(response => response.json())
       //  .then(data => console.log(json));
       //const data = $.getJSON("flare-2@2.json");
-      */
+      
+      
       data = ({
                "name": "flare",
                "children": 'test'
                 
               })
+      */
+      data = d3.json ("https://mwshovel.pythonanywhere.com/dirt/beaches/Vevey/?format=json")
       drawChart('.container',data)
 
     </script> 
