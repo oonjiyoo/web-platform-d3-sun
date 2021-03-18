@@ -11,9 +11,12 @@
     <div class="container"></div>
 
     <script>
-      const data = fetch("flare-2@2.json")
-        .then(response => response.json())
-        .then(data => console.log(json));
+      const d3.json("/data/users.json", function(error, data){
+
+      });
+      //const data = fetch("flare-2@2.json")
+      //  .then(response => response.json())
+      //  .then(data => console.log(json));
       //const data = $.getJSON("flare-2@2.json");
       
       drawChart('.container',data)
