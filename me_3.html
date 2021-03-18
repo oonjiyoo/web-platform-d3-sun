@@ -60,7 +60,7 @@ var arc = d3.svg.arc()
 // Keep track of the node that is currently being displayed as the root.
 var node;
 
-d3.json("flare-2@2.json", function(error, root) {
+d3.json("https://gist.githubusercontent.com/mbostock/4348373/raw/85f18ac90409caa5529b32156aa6e71cf985263f/flare.json", function(error, root) {
 node = root;
 var path = svg.datum(root).selectAll("path")
     .data(partition.nodes)
