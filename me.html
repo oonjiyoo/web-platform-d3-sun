@@ -1,0 +1,23 @@
+<html>
+  <head>
+    <link rel="stylesheet" type="text/css" href="styles.css">
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <script src="d3Chart.js"></script>
+    <!-- script src="flare-2@2.json"></script> -->
+    <!-- <link rel="stylesheet" type="text/css" href="styles.css"> -->
+  </head>
+  <body>
+    <h2>oh whaaa!</h2>
+    <div class="container"></div>
+
+    <script>
+      var data = fetch("flare-2@2.json")
+        .then(response => response.json())
+        .then(data => console.log(json));
+      //const data = $.getJSON("flare-2@2.json");
+      
+      drawChart('.container',data)
+
+    </script> 
+  </body>
+</html>
