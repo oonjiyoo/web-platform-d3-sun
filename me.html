@@ -14,8 +14,13 @@
       //const data =  d3.json("flare-2@2.json", function(data) {
       //  console.log(data);
       //});
-      d3.json("flare-2@2.json", function(data) {
-        console.log(data);
+      d3.json("./flare-2@2.json", function(data) {
+        if(error)throw error;
+        
+        data.forEach(function(d){
+          console.log(data)
+        });
+      
       });              
       //const data = fetch("flare-2@2.json")
       //  .then(response => response.json())
