@@ -15,9 +15,10 @@ function drawChart(container, data) {
         .size([2 * Math.PI, root.height + 1])
       (root);
   }
-  const color = d3.scaleOrdinal(d3.quantize(d3.interpolateRainbow, data.children.length + 1))
+  //const color = d3.scaleOrdinal(d3.quantize(d3.interpolateRainbow, data.children.length + 1))
+  const color = d3.scaleOrdinal(d3.quantize(d3.interpolateRainbow, 10 + 1))
   
-  const arc = d3
+  const arc = d3.arc()
     .startAngle(d => d.x0)
     .endAngle(d => d.x1)
     .padAngle(d => Math.min((d.x1 - d.x0) / 2, 0.005))
